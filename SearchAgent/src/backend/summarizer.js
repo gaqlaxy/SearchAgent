@@ -4,11 +4,30 @@ import axios from "axios";
 
 
 export async function summarizeWithGroq(posts) {
+    //     const prompt = `
+    // Summarize the following Reddit discussions and suggest 3 best products with reasoning.
+
+
+    // Return ONLY valid minified JSON in the following format — no explanations, no markdown, just JSON:
+    // {
+    //   "text": "summary of the threads",
+    //   "products": [
+    //     { "name": "Product 1", "reason": "Why it's good", "link": "optional" },
+    //     { "name": "Product 2", "reason": "Why it's good", "link": "optional" },
+    //     { "name": "Product 3", "reason": "Why it's good", "link": "optional" }
+    //   ]
+    // }
+
+    // Content to analyze:
+    // ${posts.map(p => `Title: ${p.title}\nContent: ${p.selftext}`).join("\n\n")}
+    // `;
+
     const prompt = `
+You must respond with ONLY a JSON object. Do not include any explanations, markdown, or other text.
+
 Summarize the following Reddit discussions and suggest 3 best products with reasoning.
 
-
-Return ONLY valid minified JSON in the following format — no explanations, no markdown, just JSON:
+Return this exact JSON format:
 {
   "text": "summary of the threads",
   "products": [
@@ -21,7 +40,6 @@ Return ONLY valid minified JSON in the following format — no explanations, no 
 Content to analyze:
 ${posts.map(p => `Title: ${p.title}\nContent: ${p.selftext}`).join("\n\n")}
 `;
-
 
 
 
@@ -44,12 +62,43 @@ ${posts.map(p => `Title: ${p.title}\nContent: ${p.selftext}`).join("\n\n")}
         }
     );
 
+    // const content = response.data.choices[0].message.content;
+
+    // // FIX: Remove ```json ... ``` code block if it exists
+    // const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/i;
+    // const match = content.match(codeBlockRegex);
+    // const cleaned = match ? match[1] : content;
+
+    // console.log("Cleaned Content:", cleaned);
+
+    // try {
+    //     return JSON.parse(cleaned.trim());
+    // } catch (err) {
+    //     console.error("Parse Error:", err.message);
+    //     return {
+    //         text: "Failed to parse summary.",
+    //         products: [],
+    //     };
+    // }
+
     const content = response.data.choices[0].message.content;
 
-    // FIX: Remove ```json ... ``` code block if it exists
+    // Enhanced cleaning: handle multiple response formats
+    let cleaned = content;
+
+    // Remove code blocks (```json ... ```)
     const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/i;
-    const match = content.match(codeBlockRegex);
-    const cleaned = match ? match[1] : content;
+    const codeBlockMatch = content.match(codeBlockRegex);
+    if (codeBlockMatch) {
+        cleaned = codeBlockMatch[1];
+    } else {
+        // Try to extract JSON from text that starts with explanations
+        const jsonRegex = /\{[\s\S]*\}/;
+        const jsonMatch = content.match(jsonRegex);
+        if (jsonMatch) {
+            cleaned = jsonMatch[0];
+        }
+    }
 
     console.log("Cleaned Content:", cleaned);
 
@@ -57,6 +106,7 @@ ${posts.map(p => `Title: ${p.title}\nContent: ${p.selftext}`).join("\n\n")}
         return JSON.parse(cleaned.trim());
     } catch (err) {
         console.error("Parse Error:", err.message);
+        console.error("Raw content:", content); // Log raw content for debugging
         return {
             text: "Failed to parse summary.",
             products: [],
